@@ -34,7 +34,7 @@ def __get_tmp_bloom():
     return bloom, tmpdir
 
 
-def __filter_with_add(bloom, infile, outfile):
+def __filter_with_add(bloom, infile, outfile, offsetfile):
     """
 
     """
@@ -45,10 +45,14 @@ def __filter_with_add(bloom, infile, outfile):
             outfile.write(block)
             bloom.add(block)
 
+            if offsetfile:
+                line = "%d,%d%s" % (infile.tell(), outfile.tell(), os.linesep)
+                offsetfile.write(line)
+
         block = infile.read(BLOCK_SIZE)
 
 
-def __filter_no_add(bloom, bloom_self, infile, outfile):
+def __filter_no_add(bloom, bloom_self, infile, outfile, offsetfile):
     """
 
     """
@@ -61,6 +65,10 @@ def __filter_no_add(bloom, bloom_self, infile, outfile):
         else:
             outfile.write(block)
             bloom_self.add(block)
+
+            if offsetfile:
+                line = "%d,%d%s" % (infile.tell(), outfile.tell(), os.linesep)
+                offsetfile.write(line)
 
         block = infile.read(BLOCK_SIZE)
 
@@ -88,6 +96,9 @@ def main():
                         help="Defaults to stdin")
     parser.add_argument('outfile', nargs='?', type=argparse.FileType('wb'), default=sys.stdout,
                         help="Defaults to stdout")
+
+    parser.add_argument('--offsetfile', type=argparse.FileType('w'), default=None,
+                        help="Defaults to None, requires a named outfile")
     parser.add_argument('-b', '--bloom', dest='bloom', help='The path to the bloom filter to check against')
 
     #Add and delete are mutually exclusive
@@ -100,6 +111,20 @@ def main():
     args = parser.parse_args()
 
     bloom_self, tmpdir = __get_tmp_bloom()
+
+    try:
+        if args.offsetfile:
+            args.outfile.tell()
+            args.offsetfile.write('#Input:%s; ' % args.infile.name)
+            args.offsetfile.write('Output:%s%s' % (args.outfile.name, os.linesep))
+
+            if args.bloom:
+                args.offsetfile.write('#Bloom:%s%s' % (args.bloom, os.linesep))
+
+    except IOError:
+        #File.tell() does not work with pipes.
+        sys.stderr.write('Warning: Cannot write offset file when the output file is a pipe.' + os.linesep)
+        args.offsetfile = None
 
     if args.bloom and os.path.isfile(os.path.abspath(args.bloom)):
         bloom_abspath = os.path.abspath(args.bloom)
@@ -121,9 +146,9 @@ def main():
     if args.delete:
         __remove_from_bloom(bloom, args.infile)
     elif args.add:
-        __filter_with_add(bloom, args.infile, args.outfile)
+        __filter_with_add(bloom, args.infile, args.outfile, args.offsetfile)
     else:
-        __filter_no_add(bloom, bloom_self, args.infile, args.outfile)
+        __filter_no_add(bloom, bloom_self, args.infile, args.outfile, args.offsetfile)
 
     if os.path.exists(tmpdir) and os.getcwd() != tmpdir:
         args.outfile.close()
