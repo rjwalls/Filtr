@@ -42,12 +42,13 @@ def __filter_with_add(bloom, infile, outfile, offsetfile):
 
     while block != '':
         if not bloom.check(block):
-            outfile.write(block)
-            bloom.add(block)
-
             if offsetfile:
                 line = "%d,%d%s" % (infile.tell(), outfile.tell(), os.linesep)
                 offsetfile.write(line)
+                
+            outfile.write(block)
+            bloom.add(block)
+
 
         block = infile.read(BLOCK_SIZE)
 
@@ -63,12 +64,12 @@ def __filter_no_add(bloom, bloom_self, infile, outfile, offsetfile):
         if bloom_self.check(block) or bloom.check(block):
             pass
         else:
-            outfile.write(block)
-            bloom_self.add(block)
-
             if offsetfile:
                 line = "%d,%d%s" % (infile.tell(), outfile.tell(), os.linesep)
                 offsetfile.write(line)
+
+            outfile.write(block)
+            bloom_self.add(block)
 
         block = infile.read(BLOCK_SIZE)
 
