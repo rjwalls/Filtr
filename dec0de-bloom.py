@@ -45,7 +45,7 @@ def __filter_with_add(bloom, infile, outfile, offsetfile):
             if offsetfile:
                 line = "%d,%d%s" % (infile.tell(), outfile.tell(), os.linesep)
                 offsetfile.write(line)
-                
+
             outfile.write(block)
             bloom.add(block)
 
@@ -100,7 +100,8 @@ def main():
 
     parser.add_argument('--offsetfile', type=argparse.FileType('w'), default=None,
                         help="Defaults to None, requires a named outfile")
-    parser.add_argument('-b', '--bloom', dest='bloom', help='The path to the bloom filter to check against')
+    parser.add_argument('-b', '--bloom', help='The path to the bloom filter to check against')
+    parser.add_argument('-c', '--capacity', type=int, default=CAPACITY, help='The capacity of the bloom filter, DEFAULT: 1 million')
 
     #Add and delete are mutually exclusive
     group = parser.add_mutually_exclusive_group()
@@ -130,11 +131,11 @@ def main():
     if args.bloom and os.path.isfile(os.path.abspath(args.bloom)):
         bloom_abspath = os.path.abspath(args.bloom)
         #sys.stderr.write('Using bloom: %s' % bloom_abspath + os.linesep)
-        bloom = pydablooms.load_dabloom(capacity=CAPACITY, error_rate=ERROR_RATE, filepath=bloom_abspath)
+        bloom = pydablooms.load_dabloom(capacity=args.capacity, error_rate=ERROR_RATE, filepath=bloom_abspath)
     elif args.bloom and args.add:
         bloom_abspath = os.path.abspath(args.bloom)
-        bloom = pydablooms.Dablooms(capacity=CAPACITY, error_rate=ERROR_RATE, filepath=bloom_abspath)
-        sys.stderr.write('Created bloom at %s' % bloom_abspath + os.linesep)
+        bloom = pydablooms.Dablooms(capacity=args.capacity, error_rate=ERROR_RATE, filepath=bloom_abspath)
+        sys.stderr.write('Created bloom with capacity %d at %s' % (args.capacity, bloom_abspath + os.linesep))
     else:
         if args.bloom:
             sys.stderr.write("Bloom file does not exist and we cannot create new bloom without the --add flag" + os.linesep)
@@ -142,7 +143,7 @@ def main():
             sys.stderr.write("Add option ignored without bloom file specified" + os.linesep)
 
         bloom = bloom_self
-        sys.stderr.write('Created tmp bloom at %s' % tmpdir + os.linesep)
+        sys.stderr.write('Created tmp bloom with capacity %d at %s' % (args.capacity, tmpdir + os.linesep))
 
     if args.delete:
         __remove_from_bloom(bloom, args.infile)
